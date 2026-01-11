@@ -1,20 +1,29 @@
-// script.js
+// script.js - VERSIÓN CORREGIDA
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// --- CARGAR IMÁGENES ---
-const birdSprite = new Image();
-birdSprite.src = "https://i.ibb.co/Q9yv5Jk/bird.png"; // Sprite con 3 frames del pájaro
+// --- CARGAR IMÁGENES (Enlaces seguros de GitHub) ---
+const birdImg = new Image();
+birdImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/yellowbird-midflap.png";
 
-const cloudImg = new Image();
-cloudImg.src = "https://i.ibb.co/D4w3f5s/cloud.png"; // Imagen de nube pixel art
+const bgImg = new Image();
+bgImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/background-day.png";
+
+const pipeNorthImg = new Image();
+pipeNorthImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/pipe-green.png";
+
+const pipeSouthImg = new Image();
+pipeSouthImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/pipe-green.png"; 
+// (Nota: rotaremos la tubería sur con código más abajo)
+
+const fgImg = new Image();
+fgImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/base.png";
+
 
 // --- VARIABLES DEL JUEGO ---
 let frames = 0;
-const degree = Math.PI / 180;
 
-// Estado del juego
 const state = {
     current: 0,
     getReady: 0,
@@ -22,7 +31,7 @@ const state = {
     over: 2
 }
 
-// CONTROL: Detectar clicks o tecla espacio
+// CONTROL
 document.addEventListener("click", function(evt) {
     switch(state.current) {
         case state.getReady:
@@ -53,52 +62,30 @@ document.addEventListener("keydown", function(e) {
     }
 });
 
-// OBJETOS DEL JUEGO
+// OBJETOS
 
-// Fondo (Nubes pixel art)
 const bg = {
     draw : function() {
         ctx.fillStyle = "#70c5ce";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Dibujar nubes con la nueva imagen
-        ctx.drawImage(cloudImg, 0, 350, canvas.width, cloudImg.height);
+        // Dibujamos el fondo real
+        ctx.drawImage(bgImg, 0, canvas.height - 512); // Ajuste de altura
+        ctx.drawImage(bgImg, bgImg.width, canvas.height - 512);
     }
 }
 
-// El Pájaro (Ahora con sprite)
 const bird = {
     x : 50,
     y : 150,
     width : 34,
     height : 24,
-    
-    // Animación del sprite
-    frame : 0,
-    
     speed : 0,
     gravity : 0.25,
     jump : -4.6,
     
     draw : function() {
-        let birdX = this.frame * this.width;
-        
-        if(state.current == state.getReady) {
-            // En Get Ready, el pájaro aletea más lento
-            this.frame += frames % 10 == 0 ? 1 : 0; 
-        } else {
-            // En el juego, aletea más rápido
-            this.frame += frames % 5 == 0 ? 1 : 0;
-        }
-        this.frame = this.frame % 3; // Ciclo de 3 frames (0, 1, 2)
-
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        
-        // Dibujar el frame correspondiente del sprite
-        ctx.drawImage(birdSprite, birdX, 0, this.width, this.height, 0, 0, this.width, this.height);
-        
-        ctx.restore();
+        // Dibujamos la imagen del pájaro
+        ctx.drawImage(birdImg, this.x, this.y, this.width, this.height);
     },
     
     flap : function() {
@@ -112,8 +99,8 @@ const bird = {
             this.speed += this.gravity;
             this.y += this.speed;
             
-            if(this.y + this.height/2 >= canvas.height - 50) { 
-                this.y = canvas.height - 50 - this.height/2;
+            if(this.y + this.height/2 >= canvas.height - 112) { 
+                this.y = canvas.height - 112 - this.height/2;
                 if(state.current == state.game) {
                     state.current = state.over;
                 }
@@ -125,11 +112,10 @@ const bird = {
     }
 }
 
-// Tuberías (Sin cambios)
 const pipes = {
     position : [],
-    w : 53,
-    h : 400,
+    w : 52,
+    h : 400, // Altura base de la imagen de tubería
     dx : 2,
     gap : 100,
     
@@ -139,21 +125,22 @@ const pipes = {
             let topY = p.y;
             let bottomY = p.y + this.h + this.gap;
             
-            ctx.fillStyle = "#2ecc71";
-            ctx.strokeStyle = "#000";
+            // Tubería de arriba (Norte) - La invertimos visualmente
+            ctx.save();
+            ctx.translate(p.x + this.w, topY + this.h); 
+            ctx.scale(-1, -1); // Voltear 180 grados
+            ctx.drawImage(pipeNorthImg, 0, 0, this.w, this.h);
+            ctx.restore();
             
-            ctx.fillRect(p.x, topY, this.w, this.h);
-            ctx.strokeRect(p.x, topY, this.w, this.h);
-            
-            ctx.fillRect(p.x, bottomY, this.w, this.h);
-            ctx.strokeRect(p.x, bottomY, this.w, this.h);
+            // Tubería de abajo (Sur)
+            ctx.drawImage(pipeSouthImg, p.x, bottomY, this.w, this.h);
         }
     },
     
     update : function() {
         if(state.current !== state.game) return;
         
-        if(frames % 120 == 0) {
+        if(frames % 100 == 0) {
             this.position.push({
                 x : canvas.width,
                 y : -150 * (Math.random() + 1)
@@ -162,11 +149,11 @@ const pipes = {
         
         for(let i = 0; i < this.position.length; i++){
             let p = this.position[i];
-            
             p.x -= this.dx;
             
             let bottomPipeYPos = p.y + this.h + this.gap;
             
+            // Colisiones ajustadas
             if(bird.x + bird.width > p.x && bird.x < p.x + this.w && 
                (bird.y < p.y + this.h || bird.y + bird.height > bottomPipeYPos)) {
                 state.current = state.over;
@@ -186,7 +173,6 @@ const pipes = {
     }
 }
 
-// Puntuación (Sin cambios)
 const score = {
     best : localStorage.getItem("best") || 0,
     value : 0,
@@ -204,45 +190,33 @@ const score = {
             ctx.font = "25px Impact";
             ctx.fillText("Score: " + this.value, canvas.width/2 - 40, 180);
             ctx.fillText("Best: " + this.best, canvas.width/2 - 40, 220);
-            
             ctx.fillStyle = "red";
-            ctx.font = "40px Impact";
-            ctx.fillText("GAME OVER", canvas.width/2 - 90, 120);
-            ctx.strokeText("GAME OVER", canvas.width/2 - 90, 120);
-
-            ctx.fillStyle = "#FFF";
-            ctx.font = "20px Arial";
-            ctx.fillText("Click para reiniciar", 85, 300);
+            ctx.fillText("GAME OVER", canvas.width/2 - 60, 120);
         } else if(state.current == state.getReady) {
             ctx.fillStyle = "#FFF";
             ctx.font = "30px Impact";
             ctx.fillText("GET READY", canvas.width/2 - 70, 200);
             ctx.strokeText("GET READY", canvas.width/2 - 70, 200);
-            ctx.font = "15px Arial";
-            ctx.fillText("Presiona Espacio o Click", 80, 240);
         }
     }
 }
 
-// Suelo (Sin cambios)
+// Suelo
 const fg = {
-    h: 50,
+    h: 112, // Altura de la imagen del suelo
     draw: function() {
-        ctx.fillStyle = "#ded895";
-        ctx.fillRect(0, canvas.height - this.h, canvas.width, this.h);
-        ctx.lineWidth = 2;
-        ctx.strokeRect(0, canvas.height - this.h, canvas.width, this.h);
+        // Dibujar el suelo
+        ctx.drawImage(fgImg, 0, canvas.height - this.h, canvas.width, this.h);
     }
 }
 
-// --- BUCLE PRINCIPAL ---
 function loop() {
     bird.update();
     pipes.update();
     
     bg.draw();
     pipes.draw();
-    fg.draw();
+    fg.draw(); // Dibujar suelo ENCIMA de tuberias
     bird.draw();
     score.draw();
     

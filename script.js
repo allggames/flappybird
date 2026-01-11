@@ -1,81 +1,64 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// --- VARIABLES DEL JUEGO ---
+// --- VARIABLES ---
 let frames = 0;
 const RAD = Math.PI / 180;
 const state = { current: 0, getReady: 0, game: 1, over: 2 };
 
-// --- SISTEMA DE CARGA DE IMÁGENES ---
+// --- IMÁGENES ---
 const sprites = {
     bird: new Image(),
     pipe: new Image(),
     bg: new Image()
 };
 
-// Rutas de las imágenes (¡Deben coincidir con tus archivos!)
 sprites.bird.src = "guerrera.png";
-sprites.pipe.src = "columna.png";
+sprites.pipe.src = "columna.png"; 
 sprites.bg.src = "fondo.png";
-
-// Contador para saber cuándo están listas todas las imágenes
-let loadedImages = 0;
-const totalImages = 3;
-
-function checkLoad() {
-    loadedImages++;
-    if (loadedImages === totalImages) {
-        console.log("¡Todo listo! Iniciando juego...");
-        loop(); // Solo arranca cuando las 3 existen
-    }
-}
-
-// Asignamos el evento de carga a cada imagen
-sprites.bird.onload = checkLoad;
-sprites.pipe.onload = checkLoad;
-sprites.bg.onload = checkLoad;
-
-// Aviso de error si alguna imagen no se encuentra
-sprites.bird.onerror = () => alert("Error: No encuentro 'guerrera.png'");
-sprites.pipe.onerror = () => alert("Error: No encuentro 'columna.png'");
-sprites.bg.onerror = () => alert("Error: No encuentro 'fondo.png'");
-
 
 // --- OBJETOS ---
 
 const bg = {
     draw: function() {
-        // Dibuja el fondo ajustándolo al tamaño del canvas
-        ctx.drawImage(sprites.bg, 0, 0, canvas.width, canvas.height);
+        // LÓGICA DE FONDO: "COVER" (Sin deformar)
+        // Calculamos la proporción para que cubra todo el alto
+        const scale = canvas.height / sprites.bg.height;
+        const scaledWidth = sprites.bg.width * scale;
+        
+        // Dibujamos centrado
+        const xOffset = (canvas.width - scaledWidth) / 2;
+        
+        ctx.drawImage(sprites.bg, xOffset, 0, scaledWidth, canvas.height);
     }
 }
 
 const bird = {
-    x: 50,
-    y: 150,
-    w: 35, // TAMAÑO FIJO: Ancho del personaje en el juego
-    h: 35, // TAMAÑO FIJO: Alto del personaje
+    // Posición inicial
+    x: 100, 
+    y: 400,
+    // TAMAÑO: Ahora más grande porque el lienzo es HD
+    w: 80, 
+    h: 80, 
+    radius: 35, // Radio para colisiones más precisas
     speed: 0,
-    gravity: 0.25,
-    jump: -4.6,
+    gravity: 0.6, // Gravedad ajustada a la nueva escala
+    jump: -10,    // Salto ajustado
     rotation: 0,
     
     draw: function() {
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // Rotación
         if (this.speed >= this.jump) {
-            this.rotation = Math.min(Math.PI / 4, this.rotation + 5 * RAD);
+            this.rotation = Math.min(Math.PI / 4, this.rotation + 2 * RAD);
         } else {
             this.rotation = -25 * RAD;
         }
         ctx.rotate(this.rotation);
         
-        // Dibuja la imagen forzando el tamaño w y h definidos arriba
-        // Esto evita que si tu imagen es gigante, tape toda la pantalla
+        // Dibujamos la guerrera
         ctx.drawImage(sprites.bird, -this.w/2, -this.h/2, this.w, this.h);
-        
         ctx.restore();
     },
     
@@ -85,15 +68,15 @@ const bird = {
     
     update: function() {
         if(state.current == state.getReady) {
-            this.y = 150 - 5 * Math.cos(frames/15);
+            this.y = 400 - 10 * Math.cos(frames/20);
             this.rotation = 0;
         } else {
             this.speed += this.gravity;
             this.y += this.speed;
             
-            // Suelo (ajustado a 50px del borde inferior)
-            if(this.y + this.h/2 >= canvas.height - 50) {
-                this.y = canvas.height - 50 - this.h/2;
+            // Suelo (ajustado para HD)
+            if(this.y + this.h/2 >= canvas.height - 100) {
+                this.y = canvas.height - 100 - this.h/2;
                 if(state.current == state.game) state.current = state.over;
             }
         }
@@ -102,10 +85,10 @@ const bird = {
 
 const pipes = {
     position: [],
-    w: 50,  // Ancho de la columna en el juego
-    h: 320, // Largo visual de la columna
-    dx: 2,
-    gap: 110, // Espacio para pasar
+    w: 120,  // Columna más ancha
+    h: 900,  // Columna más larga
+    dx: 5,   // Velocidad ajustada
+    gap: 300, // Hueco más grande para que sea jugable en HD
     
     draw: function() {
         for(let i = 0; i < this.position.length; i++) {
@@ -113,25 +96,31 @@ const pipes = {
             let topY = p.y;
             let bottomY = p.y + this.h + this.gap;
             
+            // --- CORRECCIÓN DE LA IMAGEN DE COLUMNAS ---
+            // Tu imagen tiene muchas columnas. Vamos a tomar solo la primera (aprox 1/8 del ancho)
+            // Si ya recortaste la imagen a una sola, cambia 'srcWidth' a 'sprites.pipe.width'
+            const srcWidth = sprites.pipe.width / 8; 
+            
             // COLUMNA DE ARRIBA (Invertida)
             ctx.save();
             ctx.translate(p.x, topY + this.h);
-            ctx.scale(1, -1); // Espejo vertical
-            ctx.drawImage(sprites.pipe, 0, 0, this.w, this.h);
+            ctx.scale(1, -1); 
+            // drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh) -> Recorte inteligente
+            ctx.drawImage(sprites.pipe, 0, 0, srcWidth, sprites.pipe.height, 0, 0, this.w, this.h);
             ctx.restore();
             
             // COLUMNA DE ABAJO
-            ctx.drawImage(sprites.pipe, p.x, bottomY, this.w, this.h);
+            ctx.drawImage(sprites.pipe, 0, 0, srcWidth, sprites.pipe.height, p.x, bottomY, this.w, this.h);
         }
     },
     
     update: function() {
         if(state.current !== state.game) return;
         
-        if(frames % 120 == 0) {
+        if(frames % 100 == 0) {
             this.position.push({
                 x: canvas.width,
-                y: -150 * (Math.random() + 1)
+                y: -400 * (Math.random() + 1)
             });
         }
         
@@ -139,10 +128,15 @@ const pipes = {
             let p = this.position[i];
             p.x -= this.dx;
             
-            // Colisiones
+            // COLISIONES (Ajustadas un poco para ser más "justas")
+            // Hacemos el hitbox un poco más pequeño que la imagen visual
+            let hitX = p.x + 10;
+            let hitW = this.w - 20;
+            
             let bottomPipeYPos = p.y + this.h + this.gap;
-            if(bird.x + bird.w/2 > p.x && bird.x - bird.w/2 < p.x + this.w) {
-                if(bird.y - bird.h/2 < p.y + this.h || bird.y + bird.h/2 > bottomPipeYPos) {
+            
+            if(bird.x + bird.radius > hitX && bird.x - bird.radius < hitX + hitW) {
+                if(bird.y - bird.radius < p.y + this.h || bird.y + bird.radius > bottomPipeYPos) {
                     state.current = state.over;
                 }
             }
@@ -166,38 +160,42 @@ const score = {
     draw: function() {
         ctx.fillStyle = "#FFF";
         ctx.strokeStyle = "#000";
+        ctx.textAlign = "center"; // Centrar texto
         
         if(state.current == state.game) {
-            ctx.lineWidth = 2;
-            ctx.font = "35px Verdana";
-            ctx.fillText(this.value, canvas.width/2 - 10, 50);
-            ctx.strokeText(this.value, canvas.width/2 - 10, 50);
+            ctx.lineWidth = 3;
+            ctx.font = "80px Verdana"; // Texto más grande
+            ctx.strokeText(this.value, canvas.width/2, 100);
+            ctx.fillText(this.value, canvas.width/2, 100);
         } else if(state.current == state.over) {
-            ctx.font = "25px Verdana";
-            ctx.fillText("Score: " + this.value, canvas.width/2 - 50, 180);
-            ctx.fillText("Best: " + this.best, canvas.width/2 - 50, 220);
+            ctx.font = "50px Verdana";
+            ctx.strokeText("Score: " + this.value, canvas.width/2, 300);
+            ctx.fillText("Score: " + this.value, canvas.width/2, 300);
+            
+            ctx.strokeText("Best: " + this.best, canvas.width/2, 370);
+            ctx.fillText("Best: " + this.best, canvas.width/2, 370);
             
             ctx.fillStyle = "#e74c3c";
-            ctx.font = "40px Verdana";
-            ctx.fillText("GAME OVER", canvas.width/2 - 115, 120);
-            ctx.strokeText("GAME OVER", canvas.width/2 - 115, 120);
+            ctx.font = "80px Verdana";
+            ctx.strokeText("GAME OVER", canvas.width/2, 200);
+            ctx.fillText("GAME OVER", canvas.width/2, 200);
         } else if(state.current == state.getReady) {
             ctx.fillStyle = "#f1c40f";
-            ctx.font = "30px Verdana";
-            ctx.fillText("SPARTAN JUMP", canvas.width/2 - 115, 200);
-            ctx.strokeText("SPARTAN JUMP", canvas.width/2 - 115, 200);
+            ctx.lineWidth = 3;
+            ctx.font = "70px Verdana";
+            ctx.strokeText("SPARTAN JUMP", canvas.width/2, 250);
+            ctx.fillText("SPARTAN JUMP", canvas.width/2, 250);
+            
             ctx.fillStyle = "#FFF";
-            ctx.font = "15px Verdana";
-            ctx.fillText("Click o Espacio", canvas.width/2 - 60, 240);
+            ctx.font = "35px Verdana";
+            ctx.fillText("Click o Espacio para empezar", canvas.width/2, 350);
         }
     }
 }
 
-// --- CONTROL (Mouse, Touch y Teclado) ---
+// --- CONTROL ---
 function action(evt) {
-    // Evitamos que el doble tap haga zoom en móviles
-    if(evt.type === 'touchstart') evt.preventDefault(); 
-    
+    if(evt.type === 'touchstart') evt.preventDefault();
     switch(state.current) {
         case state.getReady: state.current = state.game; break;
         case state.game: bird.flap(); break;
@@ -210,12 +208,20 @@ function action(evt) {
     }
 }
 
-// Event Listeners
 window.addEventListener("keydown", (e) => { if(e.code === "Space") action(e); });
 window.addEventListener("mousedown", action);
 window.addEventListener("touchstart", action, {passive: false});
 
-// --- BUCLE PRINCIPAL ---
+// --- CARGA Y BUCLE ---
+let loaded = 0;
+function init() {
+    loaded++;
+    if(loaded === 3) loop();
+}
+sprites.bird.onload = init;
+sprites.pipe.onload = init;
+sprites.bg.onload = init;
+
 function loop() {
     bg.draw();
     pipes.update();
@@ -223,7 +229,6 @@ function loop() {
     bird.update();
     bird.draw();
     score.draw();
-    
     frames++;
     requestAnimationFrame(loop);
 }

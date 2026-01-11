@@ -8,11 +8,10 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden; /* Evita el scroll */
+    overflow: hidden;
 }
 
 .game-container {
-    position: relative;
     width: 100%;
     height: 100%;
     display: flex;
@@ -21,22 +20,19 @@ body {
 }
 
 canvas {
-    /* Mantiene la proporción original del juego (aspect ratio) */
-    aspect-ratio: 320 / 480;
+    /* Mantiene la proporción vertical de celular */
+    aspect-ratio: 9 / 16;
     
-    /* En PC: No deja que sea más alto del 95% de la pantalla */
+    /* En PC: Que ocupe casi toda la altura pero no se pase */
     max-height: 95vh;
-    /* En PC: Limita el ancho para que parezca un juego de móvil */
-    max-width: 60vh; 
     
-    /* En Celular: Ocupa todo el ancho posible */
-    width: 100%;
+    /* En Celular: Que ocupe todo el ancho */
+    max-width: 100%;
     
     display: block;
-    border: 2px solid #fff;
-    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    box-shadow: 0 0 50px rgba(0,0,0,0.8);
     background-color: #64b5f6;
     
-    /* Para que el pixel art se vea nítido y no borroso */
+    /* Importante para el pixel art nítido */
     image-rendering: pixelated; 
 }

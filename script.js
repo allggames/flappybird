@@ -1,28 +1,33 @@
-// script.js - VERSIÓN CORREGIDA
+// script.js - VERSIÓN GRIEGA
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// --- CARGAR IMÁGENES (Enlaces seguros de GitHub) ---
+// --- CARGAR IMÁGENES (Estilo Griego) ---
 const birdImg = new Image();
-birdImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/yellowbird-midflap.png";
+// Un espartano pixelado
+birdImg.src = "https://raw.githubusercontent.com/JavierVzqz/flappy-spartan-assets/main/spartan.png";
 
 const bgImg = new Image();
-bgImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/background-day.png";
+// Fondo con templo y nubes
+bgImg.src = "https://raw.githubusercontent.com/JavierVzqz/flappy-spartan-assets/main/greek-bg.png";
 
-const pipeNorthImg = new Image();
-pipeNorthImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/pipe-green.png";
-
-const pipeSouthImg = new Image();
-pipeSouthImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/pipe-green.png"; 
-// (Nota: rotaremos la tubería sur con código más abajo)
+const pipeImg = new Image();
+// Columna griega (se usará para arriba y abajo)
+pipeImg.src = "https://raw.githubusercontent.com/JavierVzqz/flappy-spartan-assets/main/column.png";
 
 const fgImg = new Image();
-fgImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/base.png";
+// Suelo de tierra/arena
+fgImg.src = "https://raw.githubusercontent.com/JavierVzqz/flappy-spartan-assets/main/ground.png";
+
+const owlImg = new Image();
+// El búho decorativo
+owlImg.src = "https://raw.githubusercontent.com/JavierVzqz/flappy-spartan-assets/main/owl.png";
 
 
 // --- VARIABLES DEL JUEGO ---
 let frames = 0;
+const RAD = Math.PI / 180;
 
 const state = {
     current: 0,
@@ -65,27 +70,49 @@ document.addEventListener("keydown", function(e) {
 // OBJETOS
 
 const bg = {
+    // La imagen de fondo es más ancha para poder moverla (efecto parallax)
+    x1: 0,
+    x2: canvas.width,
+    y: 0,
+    dx: 0.5, // Velocidad del fondo (más lento que las tuberías)
     draw : function() {
-        ctx.fillStyle = "#70c5ce";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        // Dibujamos el fondo real
-        ctx.drawImage(bgImg, 0, canvas.height - 512); // Ajuste de altura
-        ctx.drawImage(bgImg, bgImg.width, canvas.height - 512);
+        ctx.drawImage(bgImg, this.x1, this.y, canvas.width, canvas.height);
+        ctx.drawImage(bgImg, this.x2, this.y, canvas.width, canvas.height);
+    },
+    update: function() {
+        if(state.current === state.game) {
+            this.x1 = (this.x1 - this.dx) % (canvas.width);
+            this.x2 = (this.x2 - this.dx) % (canvas.width);
+            // Truco para que se repita infinitamente sin saltos
+            if (this.x1 <= -canvas.width) this.x1 = canvas.width + (this.x1 % canvas.width);
+            if (this.x2 <= -canvas.width) this.x2 = canvas.width + (this.x2 % canvas.width);
+        }
     }
 }
 
 const bird = {
     x : 50,
     y : 150,
-    width : 34,
-    height : 24,
+    width : 40, // Ajustado al tamaño del sprite del espartano
+    height : 40,
     speed : 0,
     gravity : 0.25,
     jump : -4.6,
+    rotation : 0,
     
     draw : function() {
-        // Dibujamos la imagen del pájaro
-        ctx.drawImage(birdImg, this.x, this.y, this.width, this.height);
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        // Rotación según la velocidad (cae de cabeza, sube mirando arriba)
+        if (this.speed >= this.jump) {
+            this.rotation = Math.min(Math.PI / 4, this.rotation + 5 * RAD);
+        } else {
+            this.rotation = -25 * RAD;
+        }
+        ctx.rotate(this.rotation);
+        // Dibujamos la imagen del espartano centrada
+        ctx.drawImage(birdImg, -this.width/2, -this.height/2, this.width, this.height);
+        ctx.restore();
     },
     
     flap : function() {
@@ -94,11 +121,13 @@ const bird = {
     
     update : function() {
         if(state.current == state.getReady) {
-            this.y = 150 - 10 * Math.cos(frames/15); 
+            this.y = 150 - 10 * Math.cos(frames/15);
+            this.rotation = 0;
         } else {
             this.speed += this.gravity;
             this.y += this.speed;
             
+            // El suelo mide 112px de alto
             if(this.y + this.height/2 >= canvas.height - 112) { 
                 this.y = canvas.height - 112 - this.height/2;
                 if(state.current == state.game) {
@@ -114,10 +143,10 @@ const bird = {
 
 const pipes = {
     position : [],
-    w : 52,
-    h : 400, // Altura base de la imagen de tubería
+    w : 60, // Ancho de la columna
+    h : 400, // Altura de la imagen de la columna
     dx : 2,
-    gap : 100,
+    gap : 130, // Espacio entre columnas
     
     draw : function() {
         for(let i = 0; i < this.position.length; i++){
@@ -125,25 +154,32 @@ const pipes = {
             let topY = p.y;
             let bottomY = p.y + this.h + this.gap;
             
-            // Tubería de arriba (Norte) - La invertimos visualmente
+            // Columna de arriba (invertida)
             ctx.save();
             ctx.translate(p.x + this.w, topY + this.h); 
-            ctx.scale(-1, -1); // Voltear 180 grados
-            ctx.drawImage(pipeNorthImg, 0, 0, this.w, this.h);
+            ctx.scale(-1, -1); 
+            ctx.drawImage(pipeImg, 0, 0, this.w, this.h);
             ctx.restore();
             
-            // Tubería de abajo (Sur)
-            ctx.drawImage(pipeSouthImg, p.x, bottomY, this.w, this.h);
+            // Columna de abajo
+            ctx.drawImage(pipeImg, p.x, bottomY, this.w, this.h);
+
+            // Dibujar el búho (solo en algunas columnas de abajo)
+            if (p.hasOwl) {
+                ctx.drawImage(owlImg, p.x + 15, bottomY - 30, 30, 30);
+            }
         }
     },
     
     update : function() {
         if(state.current !== state.game) return;
         
-        if(frames % 100 == 0) {
+        if(frames % 120 == 0) {
             this.position.push({
                 x : canvas.width,
-                y : -150 * (Math.random() + 1)
+                y : -150 * (Math.random() + 1),
+                // 30% de probabilidad de que aparezca un búho
+                hasOwl: Math.random() < 0.3 
             });
         }
         
@@ -153,9 +189,10 @@ const pipes = {
             
             let bottomPipeYPos = p.y + this.h + this.gap;
             
-            // Colisiones ajustadas
-            if(bird.x + bird.width > p.x && bird.x < p.x + this.w && 
-               (bird.y < p.y + this.h || bird.y + bird.height > bottomPipeYPos)) {
+            // Colisiones (ajustadas al nuevo tamaño del pájaro y columnas)
+            // Usamos un margen de 5px para que no sea tan frustrante
+            if(bird.x + bird.width/2 - 5 > p.x && bird.x - bird.width/2 + 5 < p.x + this.w && 
+               (bird.y - bird.height/2 + 5 < p.y + this.h || bird.y + bird.height/2 - 5 > bottomPipeYPos)) {
                 state.current = state.over;
             }
             
@@ -183,40 +220,53 @@ const score = {
         
         if(state.current == state.game) {
             ctx.lineWidth = 2;
-            ctx.font = "35px Impact";
-            ctx.fillText(this.value, canvas.width/2, 50);
-            ctx.strokeText(this.value, canvas.width/2, 50);
+            ctx.font = "50px Impact";
+            ctx.fillText(this.value, canvas.width/2, 80);
+            ctx.strokeText(this.value, canvas.width/2, 80);
         } else if(state.current == state.over) {
             ctx.font = "25px Impact";
             ctx.fillText("Score: " + this.value, canvas.width/2 - 40, 180);
             ctx.fillText("Best: " + this.best, canvas.width/2 - 40, 220);
-            ctx.fillStyle = "red";
+            ctx.fillStyle = "#e74c3c"; // Rojo sangre para Game Over
             ctx.fillText("GAME OVER", canvas.width/2 - 60, 120);
         } else if(state.current == state.getReady) {
-            ctx.fillStyle = "#FFF";
-            ctx.font = "30px Impact";
-            ctx.fillText("GET READY", canvas.width/2 - 70, 200);
-            ctx.strokeText("GET READY", canvas.width/2 - 70, 200);
+            ctx.fillStyle = "#f1c40f"; // Color dorado
+            ctx.font = "40px Impact";
+            ctx.fillText("SPARTAN JUMP", canvas.width/2 - 110, 200);
+            ctx.strokeText("SPARTAN JUMP", canvas.width/2 - 110, 200);
         }
     }
 }
 
 // Suelo
 const fg = {
-    h: 112, // Altura de la imagen del suelo
+    h: 112, 
+    x1: 0,
+    x2: canvas.width,
+    dx: 2, // Misma velocidad que las tuberías
     draw: function() {
-        // Dibujar el suelo
-        ctx.drawImage(fgImg, 0, canvas.height - this.h, canvas.width, this.h);
+        ctx.drawImage(fgImg, this.x1, canvas.height - this.h, canvas.width, this.h);
+        ctx.drawImage(fgImg, this.x2, canvas.height - this.h, canvas.width, this.h);
+    },
+    update: function() {
+        if(state.current === state.game) {
+            this.x1 = (this.x1 - this.dx) % (canvas.width);
+            this.x2 = (this.x2 - this.dx) % (canvas.width);
+            if (this.x1 <= -canvas.width) this.x1 = canvas.width + (this.x1 % canvas.width);
+            if (this.x2 <= -canvas.width) this.x2 = canvas.width + (this.x2 % canvas.width);
+        }
     }
 }
 
 function loop() {
     bird.update();
     pipes.update();
+    fg.update(); // El suelo ahora se mueve
+    bg.update(); // El fondo ahora se mueve
     
     bg.draw();
     pipes.draw();
-    fg.draw(); // Dibujar suelo ENCIMA de tuberias
+    fg.draw(); 
     bird.draw();
     score.draw();
     

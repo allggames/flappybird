@@ -20,19 +20,18 @@ body {
 }
 
 canvas {
-    /* Mantiene la proporción vertical de celular */
+    /* Mantiene la proporción de pantalla de celular vertical */
     aspect-ratio: 9 / 16;
     
-    /* En PC: Que ocupe casi toda la altura pero no se pase */
+    /* En PC: Ocupa casi todo el alto */
     max-height: 95vh;
-    
-    /* En Celular: Que ocupe todo el ancho */
+    /* En Celular: Ocupa todo el ancho */
     max-width: 100%;
     
     display: block;
     box-shadow: 0 0 50px rgba(0,0,0,0.8);
-    background-color: #64b5f6;
+    background-color: #87CEEB; /* Azul cielo de respaldo */
     
-    /* Importante para el pixel art nítido */
+    /* Renderizado nítido para pixel art */
     image-rendering: pixelated; 
 }

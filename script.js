@@ -13,33 +13,44 @@ const sprites = {
     bg: new Image()
 };
 
-// Asegúrate de que los archivos se llamen así en tu carpeta:
+// POR FAVOR: Usa la versión PNG transparente de la guerrera aquí
 sprites.bird.src = "guerrera.png"; 
 sprites.pipe.src = "columna.png";
-sprites.bg.src = "fondo.png";
+// Usa tu fondo complejo aquí (el del templo)
+sprites.bg.src = "fondo.png"; 
 
 // --- OBJETOS ---
 
 const bg = {
     draw: function() {
-        if (!sprites.bg.complete) return;
-        // Dibujamos el fondo cubriendo todo el canvas
-        ctx.drawImage(sprites.bg, 0, 0, canvas.width, canvas.height);
+        if (!sprites.bg.complete) {
+             ctx.fillStyle = "#333"; ctx.fillRect(0,0,canvas.width, canvas.height); return;
+        }
+        
+        // Técnica para dibujar el fondo tipo "COVER" (sin deformar)
+        // Calcula la escala necesaria para llenar el alto del canvas
+        const scale = canvas.height / sprites.bg.height;
+        const scaledWidth = sprites.bg.width * scale;
+        // Centra la imagen horizontalmente
+        const xOffset = (canvas.width - scaledWidth) / 2;
+        
+        ctx.drawImage(sprites.bg, xOffset, 0, scaledWidth, canvas.height);
     }
 }
 
 const bird = {
-    x: 50, 
-    y: 150,
-    // ¡AQUÍ ESTÁ EL CAMBIO! 
-    // He puesto tamaños grandes para una resolución de 320x480.
-    // 50px es bastante grande en una pantalla de 320px de ancho.
-    w: 50, 
-    h: 50, 
-    radius: 20, 
+    x: canvas.width / 3, // Posición horizontal
+    y: canvas.height / 2,
+    // --- TAMAÑO ÉPICO ---
+    // Hacemos al personaje MUY grande para que se vea como en la foto
+    w: 180, 
+    h: 180, 
+    // Hitbox (radio de colisión) más pequeño que la imagen para ser justo
+    radius: 60, 
     speed: 0,
-    gravity: 0.25,
-    jump: -4.6, 
+    // Físicas ajustadas para este tamaño grande y resolución HD
+    gravity: 0.8,
+    jump: -15, 
     rotation: 0,
     
     draw: function() {
@@ -48,15 +59,16 @@ const bird = {
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // Rotación al saltar/caer
+        // Rotación más sutil y realista
         if (this.speed >= this.jump) {
-            this.rotation = Math.min(Math.PI / 4, this.rotation + 5 * RAD);
+            this.rotation = Math.min(Math.PI / 8, this.rotation + 1 * RAD);
         } else {
-            this.rotation = -25 * RAD;
+            this.rotation = -15 * RAD;
         }
         ctx.rotate(this.rotation);
         
-        // Dibujamos la guerrera
+        // Dibujar la guerrera
+        // Si usas el PNG transparente, ¡aquí es donde se verá increíble!
         ctx.drawImage(sprites.bird, -this.w/2, -this.h/2, this.w, this.h);
         ctx.restore();
     },
@@ -67,16 +79,21 @@ const bird = {
     
     update: function() {
         if(state.current == state.getReady) {
-            this.y = 150 - 5 * Math.cos(frames/15);
+            this.y = canvas.height / 2 - 20 * Math.cos(frames/30);
             this.rotation = 0;
         } else {
             this.speed += this.gravity;
             this.y += this.speed;
             
-            // Suelo
-            if(this.y + this.h/2 >= canvas.height - 40) {
-                this.y = canvas.height - 40 - this.h/2;
+            // Límite inferior (suelo)
+            if(this.y + this.h/2 >= canvas.height - 50) {
+                this.y = canvas.height - 50 - this.h/2;
                 if(state.current == state.game) state.current = state.over;
+            }
+            // Límite superior (techo)
+            if(this.y - this.h/2 <= 0) {
+                this.y = this.h/2;
+                this.speed = 0;
             }
         }
     }
@@ -84,10 +101,10 @@ const bird = {
 
 const pipes = {
     position: [],
-    w: 60,  // Columnas anchas
-    h: 400, // Altura base
-    dx: 2,  // Velocidad
-    gap: 130, // Hueco generoso para que pase la guerrera grande
+    w: 160,   // Columnas muy gruesas e imponentes
+    h: 1000,  // Altura visual de la columna
+    dx: 7,    // Velocidad rápida
+    gap: 380, // Hueco muy grande para que pase el personaje gigante
     
     draw: function() {
         if (!sprites.pipe.complete) return;
@@ -97,14 +114,14 @@ const pipes = {
             let topY = p.y; 
             let bottomY = p.y + this.gap;
             
-            // Arriba (Espejo)
+            // Columna de Arriba (Espejo vertical)
             ctx.save();
             ctx.translate(p.x, topY);
-            ctx.scale(1, -1); 
+            ctx.scale(1, -1);
             ctx.drawImage(sprites.pipe, 0, 0, this.w, this.h);
             ctx.restore();
             
-            // Abajo (Normal)
+            // Columna de Abajo (Normal)
             ctx.drawImage(sprites.pipe, p.x, bottomY, this.w, this.h);
         }
     },
@@ -112,11 +129,12 @@ const pipes = {
     update: function() {
         if(state.current !== state.game) return;
         
-        // Añadir columna cada 120 frames
-        if(frames % 120 == 0) {
+        // Generar columnas cada 110 frames
+        if(frames % 110 == 0) {
             this.position.push({
                 x: canvas.width,
-                y: Math.random() * (canvas.height - 350) + 150
+                // Rango de altura aleatoria para el hueco
+                y: Math.random() * (canvas.height - 700) + 200
             });
         }
         
@@ -124,14 +142,18 @@ const pipes = {
             let p = this.position[i];
             p.x -= this.dx;
             
-            // Colisiones (ajustadas al nuevo tamaño)
-            let hitX = p.x + 5;
-            let hitW = this.w - 10;
+            // --- COLISIONES ---
+            // Hitbox horizontal un poco más permisivo
+            let hitX = p.x + 20;
+            let hitW = this.w - 40;
             let bottomPipeYPos = p.y + this.gap;
             
-            if(bird.x + bird.radius > hitX && bird.x - bird.radius < hitX + hitW) {
+            // Comprobación circular vs rectangular (más precisa para este tamaño)
+            // Simplificación: si el centro del pájaro entra en la zona X de la tubería
+            if(bird.x > hitX && bird.x < hitX + hitW) {
+                // Y si el borde superior o inferior del pájaro toca las tuberías
                 if(bird.y - bird.radius < p.y || bird.y + bird.radius > bottomPipeYPos) {
-                    state.current = state.over;
+                     state.current = state.over;
                 }
             }
             
@@ -155,41 +177,41 @@ const score = {
         ctx.fillStyle = "#FFF";
         ctx.strokeStyle = "#000";
         ctx.textAlign = "center";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4;
         
         if(state.current == state.game) {
-            ctx.font = "40px Verdana";
-            ctx.strokeText(this.value, canvas.width/2, 50);
-            ctx.fillText(this.value, canvas.width/2, 50);
+            ctx.font = "100px Georgia, serif"; // Fuente más clásica
+            ctx.strokeText(this.value, canvas.width/2, 150);
+            ctx.fillText(this.value, canvas.width/2, 150);
         } else if(state.current == state.over) {
-            ctx.font = "30px Verdana";
-            ctx.strokeText("Score: " + this.value, canvas.width/2, 180);
-            ctx.fillText("Score: " + this.value, canvas.width/2, 180);
-            
-            ctx.font = "40px Verdana";
             ctx.fillStyle = "#e74c3c";
-            ctx.strokeText("GAME OVER", canvas.width/2, 120);
-            ctx.fillText("GAME OVER", canvas.width/2, 120);
-            
+            ctx.font = "80px Georgia, serif";
+            ctx.strokeText("GAME OVER", canvas.width/2, canvas.height/2 - 100);
+            ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2 - 100);
+
             ctx.fillStyle = "#FFF";
-            ctx.font = "20px Verdana";
-            ctx.fillText("Click para reiniciar", canvas.width/2, 300);
-        } else if(state.current == state.getReady) {
-            ctx.fillStyle = "#f1c40f";
+            ctx.font = "50px Georgia, serif";
+            ctx.strokeText("Score: " + this.value, canvas.width/2, canvas.height/2 + 20);
+            ctx.fillText("Score: " + this.value, canvas.width/2, canvas.height/2 + 20);
+            
             ctx.font = "40px Verdana";
-            ctx.strokeText("SPARTAN", canvas.width/2, 200);
-            ctx.fillText("SPARTAN", canvas.width/2, 200);
+            ctx.fillText("Tap to restart", canvas.width/2, canvas.height/2 + 150);
+        } else if(state.current == state.getReady) {
+            ctx.fillStyle = "#f1c40f"; // Dorado
+            ctx.font = "90px Georgia, serif";
+            ctx.strokeText("SPARTAN", canvas.width/2, canvas.height/2 - 100);
+            ctx.fillText("SPARTAN", canvas.width/2, canvas.height/2 - 100);
             
             ctx.fillStyle = "#FFF";
-            ctx.font = "20px Verdana";
-            ctx.fillText("Toca para saltar", canvas.width/2, 240);
+            ctx.font = "40px Verdana";
+            ctx.fillText("Tap to start", canvas.width/2, canvas.height/2 + 50);
         }
     }
 }
 
 // --- CONTROL ---
 function action(evt) {
-    if(evt.type === 'touchstart') evt.preventDefault(); // Evita doble toque zoom
+    if(evt.type === 'touchstart') evt.preventDefault();
     switch(state.current) {
         case state.getReady: state.current = state.game; break;
         case state.game: bird.flap(); break;
@@ -202,11 +224,33 @@ function action(evt) {
     }
 }
 
-window.addEventListener("keydown", (e) => { if(e.code === "Space") action(e); });
+window.addEventListener("keydown", (e) => { if(e.code === "Space" || e.code === "ArrowUp") action(e); });
 window.addEventListener("mousedown", action);
 window.addEventListener("touchstart", action, {passive: false});
 
-// --- INICIO ---
+// --- INICIO ROBUSTO ---
+// Esperamos a que carguen las imágenes esenciales antes de arrancar el bucle
+let assetsLoaded = 0;
+function checkAssets() {
+    assetsLoaded++;
+    if(assetsLoaded === 3) {
+        console.log("Assets loaded. Starting game.");
+        loop();
+    }
+}
+
+sprites.bird.onload = checkAssets;
+sprites.pipe.onload = checkAssets;
+sprites.bg.onload = checkAssets;
+
+// Fallback de seguridad: si algo falla al cargar, inicia igual después de 2 segundos
+setTimeout(() => {
+    if (assetsLoaded < 3) {
+        console.warn("Some assets failed to load. Starting anyway.");
+        loop();
+    }
+}, 2000);
+
 function loop() {
     bg.draw();
     pipes.update();
@@ -217,5 +261,3 @@ function loop() {
     frames++;
     requestAnimationFrame(loop);
 }
-
-loop();

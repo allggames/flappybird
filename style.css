@@ -5,15 +5,13 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-color: #333; /* Fondo gris oscuro fuera del juego */
-    font-family: 'Arial', sans-serif;
-    overflow: hidden; /* Evita barras de desplazamiento */
+    background-color: #333;
+    font-family: 'Verdana', sans-serif;
 }
 
 canvas {
     display: block;
     border: 4px solid #fff;
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
-    /* Color azul cielo base, por si la imagen tarda en cargar */
-    background-color: #5c94fc; 
+    background-color: #70c5ce; /* Color cielo por defecto */
 }

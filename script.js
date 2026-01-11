@@ -1,40 +1,60 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// --- CONFIGURACIÓN ---
+// --- VARIABLES DEL JUEGO ---
 let frames = 0;
 const RAD = Math.PI / 180;
-
 const state = { current: 0, getReady: 0, game: 1, over: 2 };
 
-// --- CARGA DE IMÁGENES ---
-const birdImg = new Image();
-birdImg.src = "guerrera.png"; 
+// --- SISTEMA DE CARGA DE IMÁGENES ---
+const sprites = {
+    bird: new Image(),
+    pipe: new Image(),
+    bg: new Image()
+};
 
-const pipeImg = new Image();
-pipeImg.src = "columna.png"; 
+// Rutas de las imágenes (¡Deben coincidir con tus archivos!)
+sprites.bird.src = "guerrera.png";
+sprites.pipe.src = "columna.png";
+sprites.bg.src = "fondo.png";
 
-const bgImg = new Image();
-bgImg.src = "fondo.png";
+// Contador para saber cuándo están listas todas las imágenes
+let loadedImages = 0;
+const totalImages = 3;
+
+function checkLoad() {
+    loadedImages++;
+    if (loadedImages === totalImages) {
+        console.log("¡Todo listo! Iniciando juego...");
+        loop(); // Solo arranca cuando las 3 existen
+    }
+}
+
+// Asignamos el evento de carga a cada imagen
+sprites.bird.onload = checkLoad;
+sprites.pipe.onload = checkLoad;
+sprites.bg.onload = checkLoad;
+
+// Aviso de error si alguna imagen no se encuentra
+sprites.bird.onerror = () => alert("Error: No encuentro 'guerrera.png'");
+sprites.pipe.onerror = () => alert("Error: No encuentro 'columna.png'");
+sprites.bg.onerror = () => alert("Error: No encuentro 'fondo.png'");
+
 
 // --- OBJETOS ---
 
 const bg = {
     draw: function() {
-        // FONDO FIJO: Se dibuja una sola vez ocupando todo el lienzo
-        // Esto evita los cortes feos si la imagen no es "seamless"
-        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-    },
-    update: function() {
-        // No hacemos nada aquí para que el fondo no se mueva
+        // Dibuja el fondo ajustándolo al tamaño del canvas
+        ctx.drawImage(sprites.bg, 0, 0, canvas.width, canvas.height);
     }
 }
 
 const bird = {
     x: 50,
     y: 150,
-    w: 34,
-    h: 34,
+    w: 35, // TAMAÑO FIJO: Ancho del personaje en el juego
+    h: 35, // TAMAÑO FIJO: Alto del personaje
     speed: 0,
     gravity: 0.25,
     jump: -4.6,
@@ -43,14 +63,19 @@ const bird = {
     draw: function() {
         ctx.save();
         ctx.translate(this.x, this.y);
-        // Rotación al caer/subir
+        
+        // Rotación
         if (this.speed >= this.jump) {
             this.rotation = Math.min(Math.PI / 4, this.rotation + 5 * RAD);
         } else {
             this.rotation = -25 * RAD;
         }
         ctx.rotate(this.rotation);
-        ctx.drawImage(birdImg, -this.w/2, -this.h/2, this.w, this.h);
+        
+        // Dibuja la imagen forzando el tamaño w y h definidos arriba
+        // Esto evita que si tu imagen es gigante, tape toda la pantalla
+        ctx.drawImage(sprites.bird, -this.w/2, -this.h/2, this.w, this.h);
+        
         ctx.restore();
     },
     
@@ -66,7 +91,7 @@ const bird = {
             this.speed += this.gravity;
             this.y += this.speed;
             
-            // Colisión con el suelo (ajusta el 50 según tu imagen de fondo)
+            // Suelo (ajustado a 50px del borde inferior)
             if(this.y + this.h/2 >= canvas.height - 50) {
                 this.y = canvas.height - 50 - this.h/2;
                 if(state.current == state.game) state.current = state.over;
@@ -77,42 +102,35 @@ const bird = {
 
 const pipes = {
     position: [],
-    w: 52,   // Ancho de la columna (ajusta según tu imagen)
-    h: 400,  // Altura máxima de la imagen de la columna
-    dx: 2,   // Velocidad de las columnas hacia la izquierda
-    gap: 120, // TAMAÑO DEL HUECO para pasar
+    w: 50,  // Ancho de la columna en el juego
+    h: 320, // Largo visual de la columna
+    dx: 2,
+    gap: 110, // Espacio para pasar
     
     draw: function() {
         for(let i = 0; i < this.position.length; i++) {
             let p = this.position[i];
-            
-            let topY = p.y; 
+            let topY = p.y;
             let bottomY = p.y + this.h + this.gap;
             
-            // --- COLUMNA DE ARRIBA (INVERTIDA) ---
+            // COLUMNA DE ARRIBA (Invertida)
             ctx.save();
-            // Nos movemos a la posición donde termina la columna de arriba (el techo del hueco)
-            ctx.translate(p.x, p.y + this.h);
-            // Esto invierte la imagen verticalmente (espejo)
-            // Así el "capitel" (la parte linda de arriba) queda mirando hacia el hueco
-            ctx.scale(1, -1); 
-            ctx.drawImage(pipeImg, 0, 0, this.w, this.h);
+            ctx.translate(p.x, topY + this.h);
+            ctx.scale(1, -1); // Espejo vertical
+            ctx.drawImage(sprites.pipe, 0, 0, this.w, this.h);
             ctx.restore();
             
-            // --- COLUMNA DE ABAJO (NORMAL) ---
-            // Se dibuja desde el suelo del hueco hacia abajo
-            ctx.drawImage(pipeImg, p.x, bottomY, this.w, this.h);
+            // COLUMNA DE ABAJO
+            ctx.drawImage(sprites.pipe, p.x, bottomY, this.w, this.h);
         }
     },
     
     update: function() {
         if(state.current !== state.game) return;
         
-        // Agregar nueva columna cada 120 cuadros (frames)
         if(frames % 120 == 0) {
             this.position.push({
                 x: canvas.width,
-                // Calculamos la altura aleatoria del hueco
                 y: -150 * (Math.random() + 1)
             });
         }
@@ -121,19 +139,14 @@ const pipes = {
             let p = this.position[i];
             p.x -= this.dx;
             
-            // Coordenada Y donde empieza la columna de abajo
+            // Colisiones
             let bottomPipeYPos = p.y + this.h + this.gap;
-            
-            // DETECCIÓN DE COLISIONES
-            // 1. ¿El pájaro está horizontalmente dentro de la columna?
             if(bird.x + bird.w/2 > p.x && bird.x - bird.w/2 < p.x + this.w) {
-                // 2. ¿El pájaro está tocando la columna de arriba O la de abajo?
                 if(bird.y - bird.h/2 < p.y + this.h || bird.y + bird.h/2 > bottomPipeYPos) {
                     state.current = state.over;
                 }
             }
             
-            // Eliminar columna si sale de la pantalla y sumar punto
             if(p.x + this.w <= 0) {
                 this.position.shift();
                 score.value += 1;
@@ -175,13 +188,16 @@ const score = {
             ctx.strokeText("SPARTAN JUMP", canvas.width/2 - 115, 200);
             ctx.fillStyle = "#FFF";
             ctx.font = "15px Verdana";
-            ctx.fillText("Click o Espacio para empezar", canvas.width/2 - 100, 240);
+            ctx.fillText("Click o Espacio", canvas.width/2 - 60, 240);
         }
     }
 }
 
-// --- CONTROL ---
-function action() {
+// --- CONTROL (Mouse, Touch y Teclado) ---
+function action(evt) {
+    // Evitamos que el doble tap haga zoom en móviles
+    if(evt.type === 'touchstart') evt.preventDefault(); 
+    
     switch(state.current) {
         case state.getReady: state.current = state.game; break;
         case state.game: bird.flap(); break;
@@ -193,21 +209,21 @@ function action() {
             break;
     }
 }
-document.addEventListener("click", action);
-document.addEventListener("keydown", (e) => { if(e.code === "Space") action(); });
+
+// Event Listeners
+window.addEventListener("keydown", (e) => { if(e.code === "Space") action(e); });
+window.addEventListener("mousedown", action);
+window.addEventListener("touchstart", action, {passive: false});
 
 // --- BUCLE PRINCIPAL ---
 function loop() {
-    bg.draw();    // 1. Dibujar fondo fijo
+    bg.draw();
     pipes.update();
-    pipes.draw(); // 2. Dibujar columnas
+    pipes.draw();
     bird.update();
-    bird.draw();  // 3. Dibujar personaje
-    score.draw(); // 4. Dibujar puntaje
+    bird.draw();
+    score.draw();
     
     frames++;
     requestAnimationFrame(loop);
 }
-
-// Iniciar
-loop();

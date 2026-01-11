@@ -13,8 +13,8 @@ const sprites = {
     bg: new Image()
 };
 
-// ¡Asegúrate de que estos nombres coincidan con tus archivos!
-sprites.bird.src = "guerrera.png"; // Si consigues el PNG sin fondo, cambia esto a .png
+// ==========================================
+sprites.bird.src = "guerrera.png"; 
 sprites.pipe.src = "columna.png";
 sprites.bg.src = "fondo.png";
 
@@ -22,36 +22,44 @@ sprites.bg.src = "fondo.png";
 
 const bg = {
     draw: function() {
-        // Dibujar fondo ocupando toda la pantalla
-        ctx.drawImage(sprites.bg, 0, 0, canvas.width, canvas.height);
+        if (!sprites.bg.complete) return;
+        
+        // Dibuja el fondo centrado (recortando los lados si sobra)
+        // para que no se deforme el templo
+        const scale = canvas.height / sprites.bg.height; 
+        const w = sprites.bg.width * scale;
+        const x = (canvas.width - w) / 2;
+        
+        ctx.drawImage(sprites.bg, x, 0, w, canvas.height);
     }
 }
 
 const bird = {
-    x: 100, 
-    y: 400,
-    // TAMAÑO "REAL": 80x80px en pantalla HD se ve muy bien
-    w: 80, 
-    h: 80, 
-    radius: 30, // Radio del círculo de colisión (para que sea justo)
+    x: 50, 
+    y: 200,
+    // TAMAÑO GRANDE: 45x45 en esta resolución se ve MUCHO más grande
+    w: 45, 
+    h: 45, 
+    radius: 18, 
     speed: 0,
-    gravity: 0.6,
-    jump: -10, 
+    // Físicas ajustadas para resolución 360x640
+    gravity: 0.25,
+    jump: -5.5, 
     rotation: 0,
     
     draw: function() {
+        if (!sprites.bird.complete) return;
+        
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // Rotación
         if (this.speed >= this.jump) {
-            this.rotation = Math.min(Math.PI / 4, this.rotation + 2 * RAD);
+            this.rotation = Math.min(Math.PI / 4, this.rotation + 3 * RAD);
         } else {
             this.rotation = -25 * RAD;
         }
         ctx.rotate(this.rotation);
         
-        // Dibuja la guerrera centrada en su posición
         ctx.drawImage(sprites.bird, -this.w/2, -this.h/2, this.w, this.h);
         ctx.restore();
     },
@@ -62,16 +70,14 @@ const bird = {
     
     update: function() {
         if(state.current == state.getReady) {
-            // Flotar suavemente antes de empezar
-            this.y = 400 - 10 * Math.cos(frames/20);
+            this.y = 200 - 5 * Math.cos(frames/15); // Flotar suave
             this.rotation = 0;
         } else {
             this.speed += this.gravity;
             this.y += this.speed;
             
-            // Suelo (ajustado para que no caiga al infinito)
-            if(this.y + this.h/2 >= canvas.height - 20) {
-                this.y = canvas.height - 20 - this.h/2;
+            if(this.y + this.h/2 >= canvas.height - 40) {
+                this.y = canvas.height - 40 - this.h/2;
                 if(state.current == state.game) state.current = state.over;
             }
         }
@@ -80,29 +86,27 @@ const bird = {
 
 const pipes = {
     position: [],
-    w: 130,  // Ancho de la columna (más gruesa para HD)
-    h: 800,  // Altura visual de la columna
-    dx: 6,   // Velocidad de movimiento
-    gap: 320, // HUECO: Espacio vertical seguro para que pase la guerrera
+    w: 65,  // Columnas más anchas y visibles
+    h: 400, 
+    dx: 3,  // Velocidad normal
+    gap: 140, // Espacio justo para pasar
     
     draw: function() {
+        if (!sprites.pipe.complete) return;
+        
         for(let i = 0; i < this.position.length; i++) {
             let p = this.position[i];
-            
-            // Coordenadas del hueco
             let topY = p.y; 
             let bottomY = p.y + this.gap;
             
-            // 1. COLUMNA DE ARRIBA (Invertida)
-            // Se dibuja desde el techo del hueco hacia arriba
+            // Columna Arriba (Invertida)
             ctx.save();
-            ctx.translate(p.x, topY); // Mover al borde del hueco superior
-            ctx.scale(1, -1); // Voltear verticalmente
+            ctx.translate(p.x, topY);
+            ctx.scale(1, -1);
             ctx.drawImage(sprites.pipe, 0, 0, this.w, this.h);
             ctx.restore();
             
-            // 2. COLUMNA DE ABAJO (Normal)
-            // Se dibuja desde el suelo del hueco hacia abajo
+            // Columna Abajo
             ctx.drawImage(sprites.pipe, p.x, bottomY, this.w, this.h);
         }
     },
@@ -110,13 +114,11 @@ const pipes = {
     update: function() {
         if(state.current !== state.game) return;
         
-        // Generar columnas cada 100 cuadros
         if(frames % 100 == 0) {
             this.position.push({
                 x: canvas.width,
-                // Calcular posición Y aleatoria para el hueco
-                // Math.random() * (max - min) + min
-                y: Math.random() * (canvas.height - 600) + 200
+                // Altura aleatoria del hueco
+                y: Math.random() * (canvas.height - 300) + 100
             });
         }
         
@@ -124,21 +126,17 @@ const pipes = {
             let p = this.position[i];
             p.x -= this.dx;
             
-            // COLISIONES
-            // Hitbox un poco más pequeño que la imagen para ser amables
-            let hitX = p.x + 10;
-            let hitW = this.w - 20;
+            // Colisiones
+            let hitX = p.x + 5;
+            let hitW = this.w - 10;
             let bottomPipeYPos = p.y + this.gap;
             
-            // Si la guerrera está horizontalmente dentro de la columna
             if(bird.x + bird.radius > hitX && bird.x - bird.radius < hitX + hitW) {
-                // Y si toca la de arriba O la de abajo
                 if(bird.y - bird.radius < p.y || bird.y + bird.radius > bottomPipeYPos) {
                     state.current = state.over;
                 }
             }
             
-            // Eliminar columna si sale de pantalla
             if(p.x + this.w <= 0) {
                 this.position.shift();
                 score.value += 1;
@@ -159,37 +157,37 @@ const score = {
         ctx.fillStyle = "#FFF";
         ctx.strokeStyle = "#000";
         ctx.textAlign = "center";
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         
         if(state.current == state.game) {
-            ctx.font = "80px Verdana";
-            ctx.strokeText(this.value, canvas.width/2, 100);
-            ctx.fillText(this.value, canvas.width/2, 100);
-        } else if(state.current == state.over) {
             ctx.font = "50px Verdana";
-            ctx.strokeText("Score: " + this.value, canvas.width/2, 300);
-            ctx.fillText("Score: " + this.value, canvas.width/2, 300);
+            ctx.strokeText(this.value, canvas.width/2, 80);
+            ctx.fillText(this.value, canvas.width/2, 80);
+        } else if(state.current == state.over) {
+            ctx.font = "30px Verdana";
+            ctx.strokeText("Score: " + this.value, canvas.width/2, 180);
+            ctx.fillText("Score: " + this.value, canvas.width/2, 180);
             
-            ctx.strokeText("Best: " + this.best, canvas.width/2, 370);
-            ctx.fillText("Best: " + this.best, canvas.width/2, 370);
+            ctx.strokeText("Best: " + this.best, canvas.width/2, 230);
+            ctx.fillText("Best: " + this.best, canvas.width/2, 230);
             
             ctx.fillStyle = "#e74c3c";
-            ctx.font = "80px Verdana";
-            ctx.strokeText("GAME OVER", canvas.width/2, 200);
-            ctx.fillText("GAME OVER", canvas.width/2, 200);
+            ctx.font = "50px Verdana";
+            ctx.strokeText("GAME OVER", canvas.width/2, 120);
+            ctx.fillText("GAME OVER", canvas.width/2, 120);
             
             ctx.fillStyle = "#FFF";
-            ctx.font = "30px Verdana";
-            ctx.fillText("Click para reiniciar", canvas.width/2, 500);
+            ctx.font = "20px Verdana";
+            ctx.fillText("Click para reiniciar", canvas.width/2, 300);
         } else if(state.current == state.getReady) {
             ctx.fillStyle = "#f1c40f";
-            ctx.font = "70px Verdana";
-            ctx.strokeText("SPARTAN", canvas.width/2, 250);
-            ctx.fillText("SPARTAN", canvas.width/2, 250);
+            ctx.font = "40px Verdana";
+            ctx.strokeText("SPARTAN", canvas.width/2, 150);
+            ctx.fillText("SPARTAN", canvas.width/2, 150);
             
             ctx.fillStyle = "#FFF";
-            ctx.font = "35px Verdana";
-            ctx.fillText("Click o Espacio", canvas.width/2, 350);
+            ctx.font = "20px Verdana";
+            ctx.fillText("Click o Espacio", canvas.width/2, 200);
         }
     }
 }
@@ -214,19 +212,11 @@ window.addEventListener("mousedown", action);
 window.addEventListener("touchstart", action, {passive: false});
 
 // --- INICIO ---
-let loaded = 0;
-function init() {
-    loaded++;
-    if(loaded === 3) loop();
-}
-sprites.bird.onload = init;
-sprites.pipe.onload = init;
-sprites.bg.onload = init;
-
-// Seguridad por si alguna imagen falla
-setTimeout(() => { if(loaded < 3) loop(); }, 1000); 
-
 function loop() {
+    // Fondo de seguridad por si no carga la imagen
+    ctx.fillStyle = "#70c5ce"; 
+    ctx.fillRect(0,0,canvas.width, canvas.height);
+
     bg.draw();
     pipes.update();
     pipes.draw();
@@ -236,3 +226,5 @@ function loop() {
     frames++;
     requestAnimationFrame(loop);
 }
+
+loop();

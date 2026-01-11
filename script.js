@@ -9,36 +9,32 @@ const state = { current: 0, getReady: 0, game: 1, over: 2 };
 
 // --- CARGA DE IMÁGENES ---
 const birdImg = new Image();
-birdImg.src = "image_9.png"; // Tu guerrera espartana
+birdImg.src = "guerrera.png"; 
 
 const pipeImg = new Image();
-pipeImg.src = "image_10.png"; // Tus columnas griegas
+pipeImg.src = "columna.png"; 
 
 const bgImg = new Image();
-bgImg.src = "image_11.png"; // Tu fondo de templo griego
+bgImg.src = "fondo.png";
 
-// --- OBJETOS DEL JUEGO ---
+// --- OBJETOS ---
 
 const bg = {
-    x: 0,
-    dx: 0.5, // Velocidad del fondo (más lento para efecto de profundidad)
     draw: function() {
-        // Dibujamos el fondo dos veces para el efecto de scroll infinito
-        ctx.drawImage(bgImg, this.x, 0, canvas.width, canvas.height);
-        ctx.drawImage(bgImg, this.x + canvas.width, 0, canvas.width, canvas.height);
+        // FONDO FIJO: Se dibuja una sola vez ocupando todo el lienzo
+        // Esto evita los cortes feos si la imagen no es "seamless"
+        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
     },
     update: function() {
-        if(state.current === state.game) {
-            this.x = (this.x - this.dx) % (canvas.width);
-        }
+        // No hacemos nada aquí para que el fondo no se mueva
     }
 }
 
 const bird = {
     x: 50,
     y: 150,
-    w: 34, // Ancho aproximado de tu sprite
-    h: 34, // Alto aproximado de tu sprite
+    w: 34,
+    h: 34,
     speed: 0,
     gravity: 0.25,
     jump: -4.6,
@@ -47,14 +43,13 @@ const bird = {
     draw: function() {
         ctx.save();
         ctx.translate(this.x, this.y);
-        // Rotación basada en la velocidad vertical
+        // Rotación al caer/subir
         if (this.speed >= this.jump) {
             this.rotation = Math.min(Math.PI / 4, this.rotation + 5 * RAD);
         } else {
             this.rotation = -25 * RAD;
         }
         ctx.rotate(this.rotation);
-        // Dibujar el sprite de la guerrera centrado
         ctx.drawImage(birdImg, -this.w/2, -this.h/2, this.w, this.h);
         ctx.restore();
     },
@@ -65,14 +60,13 @@ const bird = {
     
     update: function() {
         if(state.current == state.getReady) {
-            // Flotar suavemente en la pantalla de inicio
             this.y = 150 - 5 * Math.cos(frames/15);
             this.rotation = 0;
         } else {
             this.speed += this.gravity;
             this.y += this.speed;
             
-            // Colisión con el suelo (ajustado para tu fondo)
+            // Colisión con el suelo (ajusta el 50 según tu imagen de fondo)
             if(this.y + this.h/2 >= canvas.height - 50) {
                 this.y = canvas.height - 50 - this.h/2;
                 if(state.current == state.game) state.current = state.over;
@@ -83,25 +77,30 @@ const bird = {
 
 const pipes = {
     position: [],
-    w: 50, // Ancho de la columna
-    h: 300, // Altura de la imagen de la columna
-    dx: 2,
-    gap: 120, // Espacio entre columnas
+    w: 52,   // Ancho de la columna (ajusta según tu imagen)
+    h: 400,  // Altura máxima de la imagen de la columna
+    dx: 2,   // Velocidad de las columnas hacia la izquierda
+    gap: 120, // TAMAÑO DEL HUECO para pasar
     
     draw: function() {
         for(let i = 0; i < this.position.length; i++) {
             let p = this.position[i];
-            let topY = p.y;
+            
+            let topY = p.y; 
             let bottomY = p.y + this.h + this.gap;
             
-            // Columna Superior (invertida)
+            // --- COLUMNA DE ARRIBA (INVERTIDA) ---
             ctx.save();
-            ctx.translate(p.x + this.w, topY + this.h);
-            ctx.scale(-1, -1); // Voltear verticalmente
+            // Nos movemos a la posición donde termina la columna de arriba (el techo del hueco)
+            ctx.translate(p.x, p.y + this.h);
+            // Esto invierte la imagen verticalmente (espejo)
+            // Así el "capitel" (la parte linda de arriba) queda mirando hacia el hueco
+            ctx.scale(1, -1); 
             ctx.drawImage(pipeImg, 0, 0, this.w, this.h);
             ctx.restore();
             
-            // Columna Inferior
+            // --- COLUMNA DE ABAJO (NORMAL) ---
+            // Se dibuja desde el suelo del hueco hacia abajo
             ctx.drawImage(pipeImg, p.x, bottomY, this.w, this.h);
         }
     },
@@ -109,10 +108,11 @@ const pipes = {
     update: function() {
         if(state.current !== state.game) return;
         
-        // Añadir una nueva columna cada 120 frames
+        // Agregar nueva columna cada 120 cuadros (frames)
         if(frames % 120 == 0) {
             this.position.push({
                 x: canvas.width,
+                // Calculamos la altura aleatoria del hueco
                 y: -150 * (Math.random() + 1)
             });
         }
@@ -121,12 +121,16 @@ const pipes = {
             let p = this.position[i];
             p.x -= this.dx;
             
+            // Coordenada Y donde empieza la columna de abajo
             let bottomPipeYPos = p.y + this.h + this.gap;
             
-            // Lógica de Colisión Simple
-            if(bird.x + bird.w/3 > p.x && bird.x - bird.w/3 < p.x + this.w && 
-               (bird.y - bird.h/3 < p.y + this.h || bird.y + bird.h/3 > bottomPipeYPos)) {
-                state.current = state.over;
+            // DETECCIÓN DE COLISIONES
+            // 1. ¿El pájaro está horizontalmente dentro de la columna?
+            if(bird.x + bird.w/2 > p.x && bird.x - bird.w/2 < p.x + this.w) {
+                // 2. ¿El pájaro está tocando la columna de arriba O la de abajo?
+                if(bird.y - bird.h/2 < p.y + this.h || bird.y + bird.h/2 > bottomPipeYPos) {
+                    state.current = state.over;
+                }
             }
             
             // Eliminar columna si sale de la pantalla y sumar punto
@@ -194,17 +198,16 @@ document.addEventListener("keydown", (e) => { if(e.code === "Space") action(); }
 
 // --- BUCLE PRINCIPAL ---
 function loop() {
-    bg.update();
-    bg.draw();
+    bg.draw();    // 1. Dibujar fondo fijo
     pipes.update();
-    pipes.draw();
+    pipes.draw(); // 2. Dibujar columnas
     bird.update();
-    bird.draw();
-    score.draw();
+    bird.draw();  // 3. Dibujar personaje
+    score.draw(); // 4. Dibujar puntaje
     
     frames++;
     requestAnimationFrame(loop);
 }
 
-// Iniciar el juego una vez que la imagen del personaje esté cargada
-birdImg.onload = loop;
+// Iniciar
+loop();
